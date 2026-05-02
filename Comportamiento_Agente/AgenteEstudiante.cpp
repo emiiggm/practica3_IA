@@ -93,6 +93,7 @@ std::pair<int, int> AgenteEstudiante::JuegaAleatorio(const Tablero& tablero) {
 AgenteEstudiante::Resultado AgenteEstudiante::Status(const Tablero &tablero, std::pair<int,int> &Mov) {
     /* ============== Este trozo de código se tiene que quedar aquí  =============== */
     nodosVisitados++;
+    /* ============== Empieza a partir de aquí tu implementación  =============== */
 
 
     return Resultado::EMPATE;
