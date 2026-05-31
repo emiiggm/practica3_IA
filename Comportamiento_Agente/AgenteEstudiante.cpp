@@ -94,9 +94,63 @@ AgenteEstudiante::Resultado AgenteEstudiante::Status(const Tablero &tablero, std
     /* ============== Este trozo de código se tiene que quedar aquí  =============== */
     nodosVisitados++;
     /* ============== Empieza a partir de aquí tu implementación  =============== */
+    int ganador = tablero.comprobarGanador();
+    if (ganador == id) return Resultado::VICTORIA;
+    if (ganador == -1) return Resultado::EMPATE;
+    if (ganador != 0) return Resultado::DERROTA;
 
+    auto sucesores = tablero.getSucesoresConMovimientos();
 
-    return Resultado::EMPATE;
+    if (sucesores.empty()){
+        int desempate = tablero.getGanadorDesempate();
+        if (desempate == id){
+            return Resultado::VICTORIA;
+        }else if (desempate == -1){
+            return Resultado::EMPATE;
+        }else{
+            return Resultado::DERROTA;
+        }
+    }
+
+    bool esMax = (tablero.getJugadorTurno() == id);
+    Mov = sucesores[0].second;
+
+    if (esMax){
+        
+        bool todosDerrota = true;
+        for (int i = 0; i < sucesores.size(); i++){
+            std::pair<int,int> movHijo = {-1,-1};
+            Resultado res = Status(sucesores[i].first, movHijo);
+            if (res == Resultado::VICTORIA){
+                Mov = sucesores[i].second;
+                return Resultado::VICTORIA;
+            }
+            if(res == Resultado::EMPATE && todosDerrota){
+                Mov = sucesores[i].second;
+                todosDerrota = false;
+            }
+        }
+
+        if (todosDerrota) return Resultado::DERROTA;
+        return Resultado::EMPATE;
+    }else{
+        
+        bool todosVictoria = true;
+        for (int i = 0; i < sucesores.size(); i++){
+            std::pair<int,int> movHijo = {-1,-1};
+            Resultado res = Status(sucesores[i].first, movHijo);
+            if (res == Resultado::DERROTA){
+                Mov = sucesores[i].second;
+                return Resultado::DERROTA;
+            }
+            if(res == Resultado::EMPATE && todosVictoria){
+                Mov = sucesores[i].second;
+                todosVictoria = false;
+            }
+        }
+        if (todosVictoria) return Resultado::VICTORIA;
+        return Resultado::EMPATE;
+    }
 }
 
 
@@ -119,9 +173,43 @@ double AgenteEstudiante::minimax(const Tablero &tablero, int profundidad, int pr
         return 0;
     }
     /* ============== Empieza a partir de aquí tu implementación  =============== */
+    int ganador = tablero.comprobarGanador();
+    if (ganador == id) return GANAR;
+    if (ganador == -1) return 0.0; //valor neutro entre GANAR y PERDER
+    if (ganador != 0) return PERDER;
 
+    if (profundidad >= prof_Max || !tablero.tieneMovimientosValidos()) return heuristica(tablero);
 
-    return 0;
+    auto sucesores = tablero.getSucesoresConMovimientos();
+    if(sucesores.empty()) return heuristica(tablero);
+
+    bool esMaximizador = tablero.getJugadorTurno() == id;
+
+    
+    std::pair<int,int> movHijo = {-1,-1};
+    double AV = minimax(sucesores[0].first, profundidad+1, prof_Max, movHijo);
+    Mov = sucesores[0].second; //para k=1: AV(J) = V(J1)
+
+    //para k=2,...,b: AV(J) = max{AV(J),V(Jk)} si MAX, min{AV(J),V(Jk)} si MIN
+    for (int k = 1; k < sucesores.size(); k++){
+        if (abortarBanda) break;
+        movHijo = {-1,-1};
+        double VJk = minimax(sucesores[k].first, profundidad +1, prof_Max, movHijo);
+        
+        if (esMaximizador){
+            if (VJk > AV) { 
+                AV= VJk; 
+                Mov = sucesores[k].second;
+            }
+        }else {
+            if (VJk < AV){
+                AV= VJk; 
+                Mov = sucesores[k].second;
+            }
+        }  
+    }
+
+    return AV; //AV(J)=V(J)
 }
 
 
@@ -161,7 +249,53 @@ double AgenteEstudiante::alfaBeta(const Tablero &tablero, int profundidad, int p
         return 0;
     }
     /* ============== Empieza a partir de aquí tu implementación  =============== */
+    int ganador = tablero.comprobarGanador();
+    if (ganador == id) return GANAR;
+    if (ganador == -1) return 0.0; //valor neutro entre GANAR y PERDER
+    if (ganador != 0) return PERDER;
 
+    if (profundidad >= prof_Max || !tablero.tieneMovimientosValidos()) return heuristica(tablero);
+
+    auto sucesores = tablero.getSucesoresConMovimientos();
+    if(sucesores.empty()) return heuristica(tablero);
+
+    bool esMaximizador = tablero.getJugadorTurno() == id;
+    Mov = sucesores[0].second;
+
+    if (esMaximizador){
+        //Nodo MAX:
+        //alfa <-- max(alfa, V(Jk, alfa, beta))
+        for (int k = 1; k < sucesores.size(); k++){
+            if (abortarBanda) break;
+            std::pair<int,int> movHijo = {-1,-1};
+            double val = alfaBeta(sucesores[k].first, profundidad +1, prof_Max, alfa, beta, movHijo);
+            if (val > alfa) {
+                alfa = val;
+                Mov = sucesores[k].second;
+            }
+            if (alfa >= beta){
+                return beta;
+            }
+        }
+        return alfa;
+        
+    }else {
+        //Nodo MIN:
+        //beta <-- min(beta, V(Jk, alfa, beta))
+        for (int k = 1; k < sucesores.size(); k++){
+            if (abortarBanda) break;
+            std::pair<int,int> movHijo = {-1,-1};
+            double val = alfaBeta(sucesores[k].first, profundidad +1, prof_Max, alfa, beta, movHijo);
+            if (val < beta) {
+                beta = val;
+                Mov = sucesores[k].second;
+            }
+            if (alfa >= beta){
+                return alfa;
+            }
+        }
+        return beta;
+    }  
 
     return 0;
 }
@@ -212,11 +346,75 @@ double AgenteEstudiante::heuristicaPrueba(const Tablero& tablero) {
 
 double AgenteEstudiante::heuristica1(const Tablero& tablero) {
     //A implementar por el estudiante
-return 0;
+    int rival = (id == 1) ? 2 : 1;
+    int n = tablero.getNParaGanar();
+    int filas = tablero.getFilas();
+    int cols  = tablero.getColumnas();
+
+    double score = 0.0;
+
+    int dr[] = {0, 1, 1,  1};
+    int dc[] = {1, 0, 1, -1};
+
+    for (int d = 0; d < 4; d++) {
+        for (int f = 0; f < filas; f++) {
+            for (int c = 0; c < cols; c++) {
+                int ef = f + dr[d] * (n - 1);
+                int ec = c + dc[d] * (n - 1);
+                if (ef < 0 || ef >= filas || ec < 0 || ec >= cols) continue;
+
+                int propias = 0, rivales = 0;
+                for (int k = 0; k < n; k++) {
+                    int celda = tablero.getCelda(f + dr[d]*k, c + dc[d]*k);
+                    if (celda == id)         propias++;
+                    else if (celda == rival) rivales++;
+                }
+
+                if (rivales == 0 && propias > 0) {
+                    if (propias == 2)      score += 10.0;
+                    else if (propias == 3) score += 100.0;
+                    else if (propias == 4) score += 10000.0;
+                    else if (propias >= 5) score += 1000000.0;
+                }
+
+                if (propias == 0 && rivales > 0) {
+                    if (rivales == 2)      score -= 11.0;
+                    else if (rivales == 3) score -= 110.0;
+                    else if (rivales == 4) score -= 11000.0;
+                    else if (rivales >= 5) score -= 1100000.0;
+                }
+            }
+        }
+    }
+
+    int cf = filas / 2;
+    int cc = cols / 2;
+    for (int f = 0; f < filas; f++) {
+        for (int c = 0; c < cols; c++) {
+            int distF = abs(f - cf);
+            int distC = abs(c - cc);
+            int dist  = distF > distC ? distF : distC;
+            int bonus = filas / 2 - dist;
+            if (bonus < 0) bonus = 0;
+            int celda = tablero.getCelda(f, c);
+            if (celda == id)         score += bonus * 2;
+            else if (celda == rival) score -= bonus * 2;
+        }
+    }
+
+    return score;
 }
 
 double AgenteEstudiante::heuristica2(const Tablero& tablero) {
     //A implementar por el estudiante
-return 0;
+    int rival = (id == 1) ? 2 : 1;
+    int n = tablero.getNParaGanar();
+    double score = 0.0;
+    for (int len = 2; len <= n; len++) {
+        double peso = std::pow(10.0, len - 1);
+        score += tablero.contarCombinaciones(len, id)    * peso;
+        score -= tablero.contarCombinaciones(len, rival) * peso * 1.1;
+    }
+    return score;
 }
 
